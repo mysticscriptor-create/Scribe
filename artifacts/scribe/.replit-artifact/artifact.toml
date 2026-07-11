@@ -1,0 +1,23 @@
+kind = "mobile"
+previewPath = "/"
+title = "Scribe — Writer"
+version = "1.0.0"
+id = "artifacts/scribe"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 25603
+
+[services.development]
+run = "pnpm --filter @workspace/scribe run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/scribe", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/scribe", "run", "serve" ]
+
+[services.env]
+PORT = "25603"
+BASE_PATH = "/"

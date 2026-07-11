@@ -1,6 +1,6 @@
-# [Project name]
+# Scribe — Writer
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A distraction-free Markdown writing app for Android, imported from an existing GitHub project (xyrvok/Scribe) for further bug fixes and feature work.
 
 ## Run & Operate
 
@@ -22,23 +22,35 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/scribe` — the Scribe Expo (React Native) app, imported from the user's GitHub repo. This is the primary artifact.
+- `artifacts/api-server` — Express API server (currently unused by Scribe — the app is fully local/offline, no backend calls).
+- `artifacts/mockup-sandbox` — Vite component preview server (design canvas), unrelated to Scribe.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Scribe is local-only: no backend, no network calls, all state persisted via AsyncStorage/safStorage. Do not wire it to `api-server` unless explicitly asked.
+- Document export (txt/md/html/pdf/docx/epub) is done without an external conversion service — see `.agents/memory/scribe-app.md`.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+**Scribe — Writer**: a distraction-free Markdown editor for Android, inspired by Writer Lite + Pure Writer.
+- Multiple notes organized in folders (in-app vault, persisted via AsyncStorage)
+- Customizable shortcut bar above the keyboard (insert / wrap / paired chars)
+- Right-edge swipe opens a Files & Pinned side panel; long-press a file for actions (open, floating window, pin, delete)
+- Left-edge swipe (or menu button) opens a drawer with theme picker, stats, theme editor, shortcut editor
+- 5 built-in themes (Paper, Midnight, Sepia, Typewriter, Focus) plus a full theme editor
+- Zen mode hides chrome for full focus
+- Routes: `/` (editor), `/themes`, `/theme-edit`, `/shortcuts`, `/about`, `/history`, `/settings`, `/sheets`
+- Key contexts: `ThemeContext`, `NotesContext`, `ShortcutsContext`, `PanelsContext`, `NovelProjectsContext`, `CharactersContext`, `WritingStatsContext`
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- The app was originally built outside Replit and imported via GitHub. The user is non-technical — explain changes in terms of what they'll see/experience, not code.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Native deps (expo-print, expo-sharing, react-native-reanimated, Hermes) require a full EAS/Expo Launch build — pure JS/TS changes are OTA-safe. See `.agents/memory/scribe-build.md`.
+- Google Play (Android) publishing is not supported by Replit's Expo Launch — only iOS App Store submission is. Let the user know if they ask about publishing to Android.
 
 ## Pointers
 
