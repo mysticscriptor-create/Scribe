@@ -72,6 +72,10 @@ function ThemedStack() {
           name="about"
           options={{ title: "About", presentation: "card" }}
         />
+        <Stack.Screen
+          name="guide"
+          options={{ title: "How to use Scribe", presentation: "card" }}
+        />
       </Stack>
       <StatusBar style={activeTheme.isDark ? "light" : "dark"} />
     </View>

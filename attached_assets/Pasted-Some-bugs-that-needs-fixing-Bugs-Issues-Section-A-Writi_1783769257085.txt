@@ -1,0 +1,57 @@
+Some bugs that needs fixing.
+
+# Bugs/Issues
+
+## Section A: Writing Bugs:
+
+1: When writing, the notification "We found unsaved changes from before. Restore them?" Is constantly showing with every word I type, which is annoying.
+2: If I type slightly faster, characters got missing or removed in editor. If I delete characters, the characters got miss appears and disappears again.
+3: when typing in the editor, the screen moves up and down without any reason, instead of staying in it's place, it jumps up down, sometimes more sometimes less but the text moves up and down, making it hard to focus on the line.
+4: the same thing is happening in typewriter mode, the text moves up and down more in this mode. For example I type a word, suddenly the text scrolls to up, on second word typed, it scrolls back, it keeps happening with every characters I type.
+5: it also happens sometimes (not most of the time) when I click enter to break the line.
+6: When inside brackets or quotation mark, if I hit enter to leave the brackets or quotation marks, the cursor moves unexpectedly, sometimes the cursor moves to second line then moves back, though it moves outside of the brackets or quotation marks but the experience is far from satisfactory. Sometimes when I insert quotation marks using the shortcut bar, it went to all the way to the bottom of the file.
+7: When I click inside the editor to pull up the keyboard, the way it appears and text moves are jittery, not smooth and fast.
+
+## Section B: Other Bugs and fixes
+8: Connected folders in phone storage are showing as txt files.
+9: View modes in file explorer is not showing files from projects. Instead of separating the projects from the view modes, do this instead. Where the project option is, add a button "Mode", clicking it will allow the user to change view, Project mode, vault mode, folder mode.
+10: In Projects, when creating new projects, it should give option to select chapter wise or scene wise kind of option
+    if select chapter then it won't show option to add scene, so the chapters will become the file
+    if selected scene wise, it'll show option to create scenes in chapter
+    Long pressing on the chapter or scene should also give options to send it to pinned sections and floating window option.
+
+11: Swipe from left and right have too little area of effect, increase it so even if swiped from middle of the screen to left or right brings the panels.
+
+## C. UI Changes and Additions 
+Improve the interface to make it more easy to use
+
+12: The Side Panels: 
+       Left Panel (The Macro): Vault/Project management, Folders, File Tree (file explorer), Settings and Global Search. This is where you navigate between things (add anything that I might've missed)
+        Right Panel (The Micro):
+        Quick-reference materials like pinned tab, and in another tab there should be reference material for the current document like document outline (Headers). Right panel now becomes purely for referencing things.
+13: in right panel, in pinned not (both in bottom and upper notes) add a small add/replace button, clicking it will show the folders and files so user can select a file to pin there instead of going to file explorer.
+       Meaning right panel will be for referencing, and left panel will have everything else, always design everything keeping the user experience in your mind.
+13: Smooth Cursor Tracking:
+      The scrolls should be interpolated using a spring animation, not a linear jump. When the user hits "Enter", the canvas should glide up smoothly. In both normal mode and in Typewriter mode.
+14: Typewriter mode position:
+        Add the typewriter mode toggle, file export options, and search & replace features in three dot menu in top bar and move the file title to the middle.
+15: images: add function to add/replace/remove images in characters, locations, projects (project cover image)
+16: Character And location: add function to add tags in character and locations, and function to search by tags.
+17: in theme setting menu, add options to add background images, set opacity, fonts, import local fonts, with some famous fonts built-in.
+18: everything in setting menu should be categorized beautifully.
+19: in version history, the backgrounds should be dimmer than editor, so user can know they are navigating the history. And the restore button should be more apparent, meaning with text so user knows this will replace current note with this version.
+20: improve the character and locations creation menu, aside from adding the image uploading option, also add save/cancel button below. The fields should be more prominent, I mean it should also looks beautiful, with icons etc. after creation, it'll become a card, clicking on that card should show the details of that character/location beautifully, not the editing page. To enter the editing page there should be a button.
+21: long pressing character and location cards should also show options, including pinning, floating window etc. so user can easily reference while writing.
+
+
+# Workflow:
+When building/creating/editing etc, focus fully on one task at a time
+- First go through Section A, finding the core issue and fixing all the bugs one by one. After fixing bug 1, move to bug 2 and so on. Until you fixed all 7 Section A bugs.
+- after fixing to the 7th issue, move to Section B, just as before, do it one at a time until 11.
+- After making sure there's no conflict and everything is solid and covered everything to the 11th point, move on to Section C
+- Go through one point at a time, use your creativity, knowledge and latest understanding of app building and consumer needs to add these features, from 12 to 21 one by one.
+- You can add anything that could improve the app and is not clashing with anything that's already in it.
+- add the guides to use the app in it. Remove any mention of other apps from it.
+- after completing all the points 1 to 21, verify if anything is missing, any dependancies or other file related checks. Make sure nothing is clashing with one another, if you find a clash, solve it and verify again.
+- After verification, give the code to rebuild this new version.
+- Make this version 2.0

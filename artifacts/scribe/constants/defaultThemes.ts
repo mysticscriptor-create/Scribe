@@ -1,4 +1,13 @@
-export type FontFamilyKey = "serif" | "sans" | "mono";
+export type FontFamilyKey =
+  | "serif"
+  | "serif-medium"
+  | "serif-bold"
+  | "sans"
+  | "sans-medium"
+  | "sans-semibold"
+  | "sans-bold"
+  | "mono"
+  | "mono-medium";
 
 export type ThemeColors = {
   background: string;
@@ -26,19 +35,42 @@ export type Theme = {
   paddingHorizontal: number;
   paddingVertical: number;
   maxWidth: number;
+  /** URI to a local image used as the editor background (custom themes only) */
+  backgroundImageUri?: string;
+  /** Opacity of the background image, 0–1 */
+  backgroundImageOpacity?: number;
 };
 
 export const FONT_FAMILY_MAP: Record<FontFamilyKey, string> = {
   serif: "PlayfairDisplay_400Regular",
+  "serif-medium": "PlayfairDisplay_500Medium",
+  "serif-bold": "PlayfairDisplay_700Bold",
   sans: "Inter_400Regular",
+  "sans-medium": "Inter_500Medium",
+  "sans-semibold": "Inter_600SemiBold",
+  "sans-bold": "Inter_700Bold",
   mono: "JetBrainsMono_400Regular",
+  "mono-medium": "JetBrainsMono_500Medium",
 };
 
 export const FONT_FAMILY_LABELS: Record<FontFamilyKey, string> = {
-  serif: "Serif (Playfair)",
-  sans: "Sans (Inter)",
-  mono: "Mono (JetBrains)",
+  serif: "Playfair Regular",
+  "serif-medium": "Playfair Medium",
+  "serif-bold": "Playfair Bold",
+  sans: "Inter Regular",
+  "sans-medium": "Inter Medium",
+  "sans-semibold": "Inter SemiBold",
+  "sans-bold": "Inter Bold",
+  mono: "JetBrains Regular",
+  "mono-medium": "JetBrains Medium",
 };
+
+/** Group label for font picker UI */
+export const FONT_FAMILY_GROUPS: { label: string; keys: FontFamilyKey[] }[] = [
+  { label: "Playfair Display (Serif)", keys: ["serif", "serif-medium", "serif-bold"] },
+  { label: "Inter (Sans-serif)", keys: ["sans", "sans-medium", "sans-semibold", "sans-bold"] },
+  { label: "JetBrains Mono", keys: ["mono", "mono-medium"] },
+];
 
 export const DEFAULT_THEMES: Theme[] = [
   {

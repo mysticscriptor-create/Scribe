@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -13,22 +13,36 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FilesTab } from "@/components/FilesTab";
+import { IconButton } from "@/components/IconButton";
 import { useNotes } from "@/contexts/NotesContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { countWords, readingTimeMinutes } from "@/lib/markdown";
 
-export function Menu() {
-  const { leftMenuOpen, setLeftMenuOpen, closeAllFloating, floatingWindows } =
-    usePanels();
+type MenuView = "main" | "files";
+
+// The left "Macro" panel — vault & project management, folders, file tree,
+// and global search all live here, alongside app-level navigation
+// (Settings, Characters & Locations, Guide, About). The right "Micro" panel
+// (SidePanel.tsx) is reserved for Pinned + Outline only.
+export function Menu({ onOpenNote }: { onOpenNote: (id: string) => void }) {
+  const {
+    leftMenuOpen,
+    setLeftMenuOpen,
+    closeAllFloating,
+    floatingWindows,
+    setSearchOpen,
+  } = usePanels();
   const { activeTheme, themes, setActiveTheme } = useTheme();
   const { activeNote, vaultName } = useNotes();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const c = activeTheme.colors;
   const screenWidth = Dimensions.get("window").width;
-  const menuWidth = Math.min(320, Math.max(260, screenWidth * 0.78));
+  const menuWidth = Math.min(360, Math.max(280, screenWidth * 0.84));
   const translateX = useRef(new Animated.Value(-menuWidth)).current;
+  const [view, setView] = useState<MenuView>("main");
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -38,16 +52,22 @@ export function Menu() {
     }).start();
   }, [leftMenuOpen, translateX, menuWidth]);
 
+  useEffect(() => {
+    if (!leftMenuOpen) {
+      // Reset to the main view a beat after the drawer closes, so it doesn't
+      // visibly flash back while sliding away.
+      const t = setTimeout(() => setView("main"), 260);
+      return () => clearTimeout(t);
+    }
+  }, [leftMenuOpen]);
+
   const wordCount = activeNote ? countWords(activeNote.content) : 0;
   const readMin = activeNote ? readingTimeMinutes(activeNote.content) : 0;
 
   return (
     <>
       {leftMenuOpen ? (
-        <Pressable
-          onPress={() => setLeftMenuOpen(false)}
-          style={styles.scrim}
-        />
+        <Pressable onPress={() => setLeftMenuOpen(false)} style={styles.scrim} />
       ) : null}
       <Animated.View
         pointerEvents={leftMenuOpen ? "auto" : "none"}
@@ -62,142 +82,191 @@ export function Menu() {
           },
         ]}
       >
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 30 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <Text style={[styles.brand, { color: c.text }]}>Scribe</Text>
-            <Text style={[styles.brandSub, { color: c.mutedText }]}>
-              {vaultName}
-            </Text>
-          </View>
-
-          {activeNote ? (
-            <View
-              style={[
-                styles.statsBlock,
-                { backgroundColor: c.background, borderColor: c.border },
-              ]}
-            >
-              <View style={styles.statRow}>
-                <Text style={[styles.statLabel, { color: c.mutedText }]}>
-                  Words
-                </Text>
-                <Text style={[styles.statValue, { color: c.text }]}>
-                  {wordCount}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statLabel, { color: c.mutedText }]}>
-                  Characters
-                </Text>
-                <Text style={[styles.statValue, { color: c.text }]}>
-                  {activeNote.content.length}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statLabel, { color: c.mutedText }]}>
-                  Reading
-                </Text>
-                <Text style={[styles.statValue, { color: c.text }]}>
-                  {readMin} min
-                </Text>
-              </View>
+        {view === "files" ? (
+          <View style={{ flex: 1 }}>
+            <View style={[styles.filesHeader, { borderBottomColor: c.border }]}>
+              <Pressable onPress={() => setView("main")} hitSlop={8}>
+                <Feather name="arrow-left" size={18} color={c.text} />
+              </Pressable>
+              <Text style={[styles.filesHeaderTitle, { color: c.text }]}>
+                Files & Projects
+              </Text>
+              <IconButton
+                icon="x"
+                size={30}
+                onPress={() => setLeftMenuOpen(false)}
+              />
             </View>
-          ) : null}
+            <FilesTab
+              onOpenNote={(id) => {
+                onOpenNote(id);
+                setLeftMenuOpen(false);
+              }}
+              onClose={() => setLeftMenuOpen(false)}
+            />
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 30 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              <Text style={[styles.brand, { color: c.text }]}>Scribe</Text>
+              <Text style={[styles.brandSub, { color: c.mutedText }]}>
+                {vaultName}
+              </Text>
+            </View>
 
-          <SectionLabel>Quick theme</SectionLabel>
-          {themes.map((t) => (
-            <Pressable
-              key={t.id}
-              onPress={() => setActiveTheme(t.id)}
-              style={({ pressed }) => [
-                styles.row,
-                { backgroundColor: pressed ? c.background : "transparent" },
-              ]}
-            >
+            {activeNote ? (
               <View
                 style={[
-                  styles.themeSwatch,
-                  {
-                    backgroundColor: t.colors.background,
-                    borderColor: c.border,
-                  },
+                  styles.statsBlock,
+                  { backgroundColor: c.background, borderColor: c.border },
+                ]}
+              >
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: c.mutedText }]}>
+                    Words
+                  </Text>
+                  <Text style={[styles.statValue, { color: c.text }]}>
+                    {wordCount}
+                  </Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: c.mutedText }]}>
+                    Characters
+                  </Text>
+                  <Text style={[styles.statValue, { color: c.text }]}>
+                    {activeNote.content.length}
+                  </Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: c.mutedText }]}>
+                    Reading
+                  </Text>
+                  <Text style={[styles.statValue, { color: c.text }]}>
+                    {readMin} min
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            <SectionLabel>Browse</SectionLabel>
+            <MenuItem
+              icon="folder"
+              label="Files & Projects"
+              onPress={() => setView("files")}
+            />
+            <MenuItem
+              icon="search"
+              label="Global search"
+              onPress={() => {
+                setLeftMenuOpen(false);
+                setSearchOpen(true);
+              }}
+            />
+
+            <SectionLabel>Quick theme</SectionLabel>
+            {themes.map((t) => (
+              <Pressable
+                key={t.id}
+                onPress={() => setActiveTheme(t.id)}
+                style={({ pressed }) => [
+                  styles.row,
+                  { backgroundColor: pressed ? c.background : "transparent" },
                 ]}
               >
                 <View
                   style={[
-                    styles.themeSwatchInner,
-                    { backgroundColor: t.colors.accent },
+                    styles.themeSwatch,
+                    {
+                      backgroundColor: t.colors.background,
+                      borderColor: c.border,
+                    },
                   ]}
-                />
-              </View>
-              <Text
-                style={[
-                  styles.rowLabel,
-                  {
-                    color: c.text,
-                    fontWeight: activeTheme.id === t.id ? "700" : "400",
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {t.name}
-              </Text>
-              {activeTheme.id === t.id ? (
-                <Feather name="check" size={14} color={c.accent} />
-              ) : null}
-            </Pressable>
-          ))}
+                >
+                  <View
+                    style={[
+                      styles.themeSwatchInner,
+                      { backgroundColor: t.colors.accent },
+                    ]}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.rowLabel,
+                    {
+                      color: c.text,
+                      fontWeight: activeTheme.id === t.id ? "700" : "400",
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t.name}
+                </Text>
+                {activeTheme.id === t.id ? (
+                  <Feather name="check" size={14} color={c.accent} />
+                ) : null}
+              </Pressable>
+            ))}
 
-          <View style={{ height: 8 }} />
+            <View style={{ height: 8 }} />
 
-          <MenuItem
-            icon="settings"
-            label="Settings"
-            onPress={() => {
-              setLeftMenuOpen(false);
-              router.push("/settings");
-            }}
-          />
-          <MenuItem
-            icon="users"
-            label="Characters & Locations"
-            onPress={() => {
-              setLeftMenuOpen(false);
-              router.push("/sheets");
-            }}
-          />
-          {activeNote ? (
+            <SectionLabel>App</SectionLabel>
             <MenuItem
-              icon="clock"
-              label="Version history"
+              icon="settings"
+              label="Settings"
               onPress={() => {
                 setLeftMenuOpen(false);
-                router.push({
-                  pathname: "/history",
-                  params: { noteId: activeNote.id },
-                });
+                router.push("/settings");
               }}
             />
-          ) : null}
-          {floatingWindows.length > 0 ? (
             <MenuItem
-              icon="layers"
-              label={`Close all floating (${floatingWindows.length})`}
-              onPress={() => closeAllFloating()}
+              icon="users"
+              label="Characters & Locations"
+              onPress={() => {
+                setLeftMenuOpen(false);
+                router.push("/sheets");
+              }}
             />
-          ) : null}
-          <MenuItem
-            icon="info"
-            label="About"
-            onPress={() => {
-              setLeftMenuOpen(false);
-              router.push("/about");
-            }}
-          />
-        </ScrollView>
+            {activeNote ? (
+              <MenuItem
+                icon="clock"
+                label="Version history"
+                onPress={() => {
+                  setLeftMenuOpen(false);
+                  router.push({
+                    pathname: "/history",
+                    params: { noteId: activeNote.id },
+                  });
+                }}
+              />
+            ) : null}
+            {floatingWindows.length > 0 ? (
+              <MenuItem
+                icon="layers"
+                label={`Close all floating (${floatingWindows.length})`}
+                onPress={() => closeAllFloating()}
+              />
+            ) : null}
+            <MenuItem
+              icon="book-open"
+              label="How to use Scribe"
+              onPress={() => {
+                setLeftMenuOpen(false);
+                router.push("/guide");
+              }}
+            />
+            <MenuItem
+              icon="info"
+              label="About"
+              onPress={() => {
+                setLeftMenuOpen(false);
+                router.push("/about");
+              }}
+            />
+          </ScrollView>
+        )}
       </Animated.View>
     </>
   );
@@ -206,12 +275,7 @@ export function Menu() {
 function SectionLabel({ children }: { children: string }) {
   const { activeTheme } = useTheme();
   return (
-    <Text
-      style={[
-        styles.sectionLabel,
-        { color: activeTheme.colors.mutedText },
-      ]}
-    >
+    <Text style={[styles.sectionLabel, { color: activeTheme.colors.mutedText }]}>
       {children}
     </Text>
   );
@@ -271,6 +335,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowOffset: { width: 4, height: 0 },
     shadowRadius: 16,
+  },
+  filesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  filesHeaderTitle: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   header: {
     paddingHorizontal: 18,

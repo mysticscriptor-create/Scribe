@@ -17,23 +17,35 @@ type EdgeSwipeAreaProps = ViewProps & {
   threshold?: number;
 };
 
+// Default hit area is a fraction of the screen width (with a sane floor),
+// not a fixed 24px sliver — a 24px zone was too thin to reliably catch a
+// real thumb swipe starting a little way in from the edge.
+const DEFAULT_EDGE_FRACTION = 0.35;
+const MIN_EDGE_WIDTH = 60;
+
 export function EdgeSwipeArea({
   edge,
-  edgeWidth = 24,
+  edgeWidth,
   threshold = 60,
   ...rest
 }: EdgeSwipeAreaProps) {
   const { setRightPanelOpen, setLeftMenuOpen } = usePanels();
+  const resolvedEdgeWidth =
+    edgeWidth ??
+    Math.max(MIN_EDGE_WIDTH, Dimensions.get("window").width * DEFAULT_EDGE_FRACTION);
 
   const responder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, g) => {
         if (Math.abs(g.dx) <= Math.abs(g.dy)) return false;
         const screenW = Dimensions.get("window").width;
-        if (edge === "right" && evt.nativeEvent.pageX < screenW - edgeWidth) {
+        if (
+          edge === "right" &&
+          evt.nativeEvent.pageX < screenW - resolvedEdgeWidth
+        ) {
           return false;
         }
-        if (edge === "left" && evt.nativeEvent.pageX > edgeWidth) {
+        if (edge === "left" && evt.nativeEvent.pageX > resolvedEdgeWidth) {
           return false;
         }
         return Math.abs(g.dx) > 8;
@@ -56,7 +68,7 @@ export function EdgeSwipeArea({
       style={[
         styles.area,
         edge === "right" ? { right: 0 } : { left: 0 },
-        { width: edgeWidth },
+        { width: resolvedEdgeWidth },
         rest.style,
       ]}
     />

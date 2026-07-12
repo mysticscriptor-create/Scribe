@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +17,9 @@ import {
 import { IconButton } from "@/components/IconButton";
 import { MarkdownView } from "@/components/MarkdownView";
 import {
+  FONT_FAMILY_GROUPS,
   FONT_FAMILY_LABELS,
+  FONT_FAMILY_MAP,
   type FontFamilyKey,
   type Theme,
   type ThemeColors,
@@ -99,6 +103,31 @@ export default function ThemeEditScreen() {
     router.back();
   };
 
+  const handlePickBackgroundImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission required",
+        "Allow photo library access to pick a background image.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: false,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      update({ backgroundImageUri: result.assets[0]!.uri });
+    }
+  };
+
+  const handleRemoveBackgroundImage = () => {
+    update({ backgroundImageUri: undefined, backgroundImageOpacity: undefined });
+  };
+
+  const bgOpacity = draft.backgroundImageOpacity ?? 0.3;
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.background }}
@@ -112,6 +141,13 @@ export default function ThemeEditScreen() {
         ]}
       >
         <View style={{ height: 220 }}>
+          {draft.backgroundImageUri ? (
+            <Image
+              source={{ uri: draft.backgroundImageUri }}
+              style={[StyleSheet.absoluteFill, { opacity: bgOpacity }]}
+              resizeMode="cover"
+            />
+          ) : null}
           <MarkdownView source={PREVIEW_MD} theme={draft} />
         </View>
       </View>
@@ -135,32 +171,113 @@ export default function ThemeEditScreen() {
         />
       </Row>
 
+      {/* Background Image */}
+      <SectionTitle color={c.text}>Background Image</SectionTitle>
+      <View style={{ gap: 10 }}>
+        {draft.backgroundImageUri ? (
+          <View style={styles.bgImagePreviewRow}>
+            <Image
+              source={{ uri: draft.backgroundImageUri }}
+              style={styles.bgImageThumb}
+              resizeMode="cover"
+            />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: c.mutedText, fontSize: 12 }}>
+                Image selected
+              </Text>
+              <Pressable
+                onPress={handlePickBackgroundImage}
+                style={[
+                  styles.bgImageBtn,
+                  { backgroundColor: c.surface, borderColor: c.border },
+                ]}
+              >
+                <Feather name="image" size={14} color={c.text} />
+                <Text style={{ color: c.text, fontSize: 13 }}>Replace</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleRemoveBackgroundImage}
+                style={[
+                  styles.bgImageBtn,
+                  { backgroundColor: c.surface, borderColor: c.border },
+                ]}
+              >
+                <Feather name="trash-2" size={14} color={c.text} />
+                <Text style={{ color: c.text, fontSize: 13 }}>Remove</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            onPress={handlePickBackgroundImage}
+            style={[
+              styles.bgImagePickBtn,
+              { backgroundColor: c.surface, borderColor: c.border },
+            ]}
+          >
+            <Feather name="image" size={18} color={c.mutedText} />
+            <Text style={{ color: c.mutedText, fontSize: 13 }}>
+              Pick background image from library
+            </Text>
+          </Pressable>
+        )}
+
+        {draft.backgroundImageUri ? (
+          <SteppedField
+            label="Image opacity"
+            value={Math.round(bgOpacity * 100)}
+            unit="%"
+            min={0}
+            max={100}
+            step={5}
+            onChange={(v) => update({ backgroundImageOpacity: v / 100 })}
+            textColor={c.text}
+            accent={c.accent}
+            surface={c.surface}
+            border={c.border}
+          />
+        ) : null}
+      </View>
+
+      {/* Typography */}
       <SectionTitle color={c.text}>Typography</SectionTitle>
       <Field label="Font family" textColor={c.text}>
-        <View style={styles.choiceRow}>
-          {(Object.keys(FONT_FAMILY_LABELS) as FontFamilyKey[]).map((k) => (
-            <Pressable
-              key={k}
-              onPress={() => update({ fontFamily: k })}
-              style={[
-                styles.choice,
-                {
-                  borderColor: draft.fontFamily === k ? c.accent : c.border,
-                  backgroundColor:
-                    draft.fontFamily === k ? c.accent : c.surface,
-                },
-              ]}
-            >
-              <Text
-                style={{
-                  color: draft.fontFamily === k ? c.background : c.text,
-                  fontWeight: "600",
-                  fontSize: 12,
-                }}
-              >
-                {FONT_FAMILY_LABELS[k]}
+        <View style={{ gap: 10 }}>
+          {FONT_FAMILY_GROUPS.map((group) => (
+            <View key={group.label} style={{ gap: 6 }}>
+              <Text style={{ color: c.mutedText, fontSize: 11, letterSpacing: 0.5 }}>
+                {group.label}
               </Text>
-            </Pressable>
+              <View style={styles.choiceRow}>
+                {group.keys.map((k) => (
+                  <Pressable
+                    key={k}
+                    onPress={() => update({ fontFamily: k })}
+                    style={[
+                      styles.choice,
+                      {
+                        borderColor:
+                          draft.fontFamily === k ? c.accent : c.border,
+                        backgroundColor:
+                          draft.fontFamily === k ? c.accent : c.surface,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          draft.fontFamily === k ? c.background : c.text,
+                        fontWeight: "600",
+                        fontSize: 12,
+                        fontFamily: FONT_FAMILY_MAP[k],
+                      }}
+                    >
+                      {FONT_FAMILY_LABELS[k]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           ))}
         </View>
       </Field>
@@ -500,5 +617,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 12,
+  },
+  bgImagePickBtn: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: "dashed",
+  },
+  bgImagePreviewRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  bgImageThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 8,
+  },
+  bgImageBtn: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignSelf: "flex-start",
   },
 });

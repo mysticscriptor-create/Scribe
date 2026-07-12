@@ -20,8 +20,10 @@ import {
   type Project,
   type SceneInfo,
   type SceneStatus,
+  type StructureMode,
 } from "@/contexts/NovelProjectsContext";
 import { useNotes } from "@/contexts/NotesContext";
+import { usePanels } from "@/contexts/PanelsContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { countWords } from "@/lib/markdown";
 
@@ -39,7 +41,7 @@ type CreateModalState = {
 
 type ActionState =
   | { type: "project"; item: Project }
-  | { type: "chapter"; item: Chapter }
+  | { type: "chapter"; item: Chapter; projectId: string }
   | { type: "scene"; item: SceneInfo; chapter: Chapter }
   | null;
 
@@ -59,6 +61,12 @@ type RenameState = {
   visible: boolean;
   initialName: string;
   onSave: (name: string) => void;
+} | null;
+
+/** Pin-slot picker for chapters and scenes */
+type PinPickerState = {
+  visible: boolean;
+  noteId: string;
 } | null;
 
 export function ProjectsView({
@@ -81,9 +89,11 @@ export function ProjectsView({
     updateScene,
     removeScene,
     chaptersForProject,
+    getStructureMode,
   } = useNovelProjects();
   const { createNote, deleteNote, notes } = useNotes();
   const { activeTheme } = useTheme();
+  const { setPinned, openFloating } = usePanels();
   const c = activeTheme.colors;
 
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
@@ -92,10 +102,13 @@ export function ProjectsView({
     visible: false,
     mode: "project",
   });
+  // structureMode chosen during new-project creation
+  const [pendingStructureMode, setPendingStructureMode] = useState<StructureMode>("scene-wise");
   const [action, setAction] = useState<ActionState>(null);
   const [statusPicker, setStatusPicker] = useState<StatusPickerState>(null);
   const [colorPicker, setColorPicker] = useState<ColorPickerState>(null);
   const [rename, setRename] = useState<RenameState>(null);
+  const [pinPicker, setPinPicker] = useState<PinPickerState>(null);
   const [createName, setCreateName] = useState("");
 
   const toggleProject = (id: string) => {
@@ -116,6 +129,7 @@ export function ProjectsView({
 
   const handleCreateProject = () => {
     setCreateName("");
+    setPendingStructureMode("scene-wise");
     setCreateModal({ visible: true, mode: "project" });
   };
 
@@ -135,11 +149,25 @@ export function ProjectsView({
       createModal.mode === "chapter" ? "Untitled Chapter" : "Untitled Scene"
     );
     if (createModal.mode === "project") {
-      const p = createProject(name);
+      const p = createProject(name, pendingStructureMode);
       setExpandedProjects((prev) => new Set([...prev, p.id]));
     } else if (createModal.mode === "chapter" && createModal.projectId) {
-      const ch = createChapter(createModal.projectId, name);
-      setExpandedChapters((prev) => new Set([...prev, ch.id]));
+      const structMode = getStructureMode(createModal.projectId);
+      if (structMode === "chapter-wise") {
+        // Chapter IS the note — create note immediately
+        const folderPath = `/novels/${createModal.projectId}`;
+        const note = await createNote(folderPath, name);
+        if (note) {
+          const ch = createChapter(createModal.projectId, name, note.id);
+          setCreateModal({ visible: false, mode: "project" });
+          onOpenNote(note.id);
+          onClose();
+          return;
+        }
+      } else {
+        const ch = createChapter(createModal.projectId, name);
+        setExpandedChapters((prev) => new Set([...prev, ch.id]));
+      }
     } else if (createModal.mode === "scene" && createModal.chapterId && createModal.projectId) {
       const chapter = chapters.find((c) => c.id === createModal.chapterId);
       if (!chapter) return;
@@ -161,9 +189,9 @@ export function ProjectsView({
     setAction({ type: "project", item: project });
   };
 
-  const handleLongPressChapter = (chapter: Chapter) => {
+  const handleLongPressChapter = (chapter: Chapter, projectId: string) => {
     Haptics.selectionAsync();
-    setAction({ type: "chapter", item: chapter });
+    setAction({ type: "chapter", item: chapter, projectId });
   };
 
   const handleLongPressScene = (scene: SceneInfo, chapter: Chapter) => {
@@ -233,7 +261,12 @@ export function ProjectsView({
 
   const projectWordCount = (project: Project) => {
     const pChapters = chaptersForProject(project.id);
+    const structMode = getStructureMode(project.id);
     return pChapters.reduce((total, ch) => {
+      if (structMode === "chapter-wise" && ch.noteId) {
+        const note = notes.find((n) => n.id === ch.noteId);
+        return total + (note ? countWords(note.content) : 0);
+      }
       return total + ch.scenes.reduce((t, s) => {
         const note = notes.find((n) => n.id === s.noteId);
         return t + (note ? countWords(note.content) : 0);
@@ -273,14 +306,49 @@ export function ProjectsView({
     );
   };
 
-  const renderChapter = (chapter: Chapter, projectId: string) => {
+  const renderChapterWise = (chapter: Chapter, projectId: string) => {
+    // Chapter-wise: chapter IS the note — tap opens note directly, no scene list
+    const note = chapter.noteId ? notes.find((n) => n.id === chapter.noteId) : null;
+    const words = note ? countWords(note.content) : 0;
+    return (
+      <View key={chapter.id}>
+        <Pressable
+          onPress={() => {
+            if (chapter.noteId) {
+              onOpenNote(chapter.noteId);
+              onClose();
+            }
+          }}
+          onLongPress={() => handleLongPressChapter(chapter, projectId)}
+          style={({ pressed }) => [
+            styles.chapterRow,
+            {
+              backgroundColor: pressed ? c.border + "55" : "transparent",
+              borderBottomColor: c.border,
+            },
+          ]}
+        >
+          <Feather name="file-text" size={13} color={c.mutedText} />
+          <Text style={[styles.chapterName, { color: c.text }]} numberOfLines={1}>
+            {chapter.name}
+          </Text>
+          <Text style={[styles.chapterMeta, { color: c.mutedText }]}>
+            {words > 0 ? `${words}w` : "empty"}
+          </Text>
+          <Feather name="chevron-right" size={12} color={c.mutedText} />
+        </Pressable>
+      </View>
+    );
+  };
+
+  const renderChapterSceneWise = (chapter: Chapter, projectId: string) => {
     const isExpanded = expandedChapters.has(chapter.id);
     const sceneCount = chapter.scenes.length;
     return (
       <View key={chapter.id}>
         <Pressable
           onPress={() => toggleChapter(chapter.id)}
-          onLongPress={() => handleLongPressChapter(chapter)}
+          onLongPress={() => handleLongPressChapter(chapter, projectId)}
           style={({ pressed }) => [
             styles.chapterRow,
             {
@@ -334,6 +402,7 @@ export function ProjectsView({
     const isExpanded = expandedProjects.has(project.id);
     const pChapters = chaptersForProject(project.id);
     const wc = projectWordCount(project);
+    const structMode = getStructureMode(project.id);
     const modifiedDate = new Date(project.lastModified).toLocaleDateString(
       undefined,
       { month: "short", day: "numeric" },
@@ -362,6 +431,7 @@ export function ProjectsView({
             </Text>
             <Text style={[styles.projectMeta, { color: c.mutedText }]}>
               {wc.toLocaleString()} words · {modifiedDate}
+              {structMode === "chapter-wise" ? " · chapter-wise" : ""}
             </Text>
           </View>
           <Feather
@@ -378,7 +448,11 @@ export function ProjectsView({
                 Add your first chapter to get started
               </Text>
             ) : (
-              pChapters.map((ch) => renderChapter(ch, project.id))
+              pChapters.map((ch) =>
+                structMode === "chapter-wise"
+                  ? renderChapterWise(ch, project.id)
+                  : renderChapterSceneWise(ch, project.id)
+              )
             )}
             <Pressable
               onPress={() => handleCreateChapter(project.id)}
@@ -472,6 +546,30 @@ export function ProjectsView({
               onSubmitEditing={confirmCreate}
               returnKeyType="done"
             />
+
+            {/* Structure mode picker — only for new projects */}
+            {createModal.mode === "project" && (
+              <View style={{ gap: 8 }}>
+                <Text style={[styles.sectionLabel, { color: c.mutedText }]}>
+                  Structure
+                </Text>
+                <StructureModeOption
+                  selected={pendingStructureMode === "scene-wise"}
+                  title="Scene-wise"
+                  description="Chapters contain multiple scenes as separate files"
+                  onPress={() => setPendingStructureMode("scene-wise")}
+                  c={c}
+                />
+                <StructureModeOption
+                  selected={pendingStructureMode === "chapter-wise"}
+                  title="Chapter-wise"
+                  description="Each chapter is a single document — no scene sub-level"
+                  onPress={() => setPendingStructureMode("chapter-wise")}
+                  c={c}
+                />
+              </View>
+            )}
+
             <View style={styles.modalButtons}>
               <Pressable
                 onPress={() => setCreateModal({ visible: false, mode: "project" })}
@@ -564,6 +662,31 @@ export function ProjectsView({
                     });
                   }}
                 />
+                {/* Pin / floating only available when the chapter has an underlying note */}
+                {action.item.noteId != null && (
+                  <>
+                    <ActionRow
+                      icon="bookmark"
+                      label="Pin to panel"
+                      c={c}
+                      onPress={() => {
+                        const noteId = action.item.noteId!;
+                        setAction(null);
+                        setPinPicker({ visible: true, noteId });
+                      }}
+                    />
+                    <ActionRow
+                      icon="copy"
+                      label="Open in floating window"
+                      c={c}
+                      onPress={() => {
+                        const noteId = action.item.noteId!;
+                        setAction(null);
+                        openFloating(noteId);
+                      }}
+                    />
+                  </>
+                )}
                 <ActionRow
                   icon="trash-2"
                   label="Delete chapter"
@@ -609,6 +732,26 @@ export function ProjectsView({
                   }}
                 />
                 <ActionRow
+                  icon="bookmark"
+                  label="Pin to panel"
+                  c={c}
+                  onPress={() => {
+                    const noteId = action.item.noteId;
+                    setAction(null);
+                    setPinPicker({ visible: true, noteId });
+                  }}
+                />
+                <ActionRow
+                  icon="copy"
+                  label="Open in floating window"
+                  c={c}
+                  onPress={() => {
+                    const noteId = action.item.noteId;
+                    setAction(null);
+                    openFloating(noteId);
+                  }}
+                />
+                <ActionRow
                   icon="trash-2"
                   label="Delete scene"
                   c={c}
@@ -621,6 +764,43 @@ export function ProjectsView({
                 />
               </>
             )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Pin slot picker */}
+      <Modal
+        visible={pinPicker !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPinPicker(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setPinPicker(null)}>
+          <Pressable
+            style={[styles.actionSheet, { backgroundColor: c.surface, borderColor: c.border }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.actionTitle, { color: c.mutedText }]}>
+              Pin to Side Panel
+            </Text>
+            <ActionRow
+              icon="bookmark"
+              label="Pin to top slot"
+              c={c}
+              onPress={() => {
+                if (pinPicker) setPinned("top", pinPicker.noteId);
+                setPinPicker(null);
+              }}
+            />
+            <ActionRow
+              icon="bookmark"
+              label="Pin to bottom slot"
+              c={c}
+              onPress={() => {
+                if (pinPicker) setPinned("bottom", pinPicker.noteId);
+                setPinPicker(null);
+              }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
@@ -773,6 +953,48 @@ export function ProjectsView({
   );
 }
 
+/** Small inline option card for structure mode picker */
+function StructureModeOption({
+  selected,
+  title,
+  description,
+  onPress,
+  c,
+}: {
+  selected: boolean;
+  title: string;
+  description: string;
+  onPress: () => void;
+  c: { text: string; mutedText: string; accent: string; border: string; background: string };
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.structureOption,
+        {
+          borderColor: selected ? c.accent : c.border,
+          backgroundColor: selected ? c.accent + "12" : pressed ? c.background : "transparent",
+        },
+      ]}
+    >
+      <View style={styles.structureOptionHeader}>
+        <View
+          style={[
+            styles.structureRadio,
+            {
+              borderColor: selected ? c.accent : c.border,
+              backgroundColor: selected ? c.accent : "transparent",
+            },
+          ]}
+        />
+        <Text style={[styles.structureTitle, { color: c.text }]}>{title}</Text>
+      </View>
+      <Text style={[styles.structureDesc, { color: c.mutedText }]}>{description}</Text>
+    </Pressable>
+  );
+}
+
 function ActionRow({
   icon,
   label,
@@ -897,12 +1119,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
-  modalButtons: { flexDirection: "row", gap: 10 },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
   modalBtn: {
     flex: 1,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
   actionSheet: {
     width: "100%",
@@ -910,13 +1136,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 6,
-    overflow: "hidden",
   },
   actionTitle: {
     fontSize: 13,
     fontWeight: "600",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    opacity: 0.7,
   },
   actionRow: {
     flexDirection: "row",
@@ -930,17 +1156,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingVertical: 12,
   },
   colorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    justifyContent: "center",
   },
   colorSwatch: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  structureOption: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    padding: 12,
+    gap: 4,
+  },
+  structureOptionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  structureRadio: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
+  },
+  structureTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  structureDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+    paddingLeft: 22,
   },
 });

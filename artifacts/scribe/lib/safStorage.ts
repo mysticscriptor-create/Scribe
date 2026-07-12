@@ -89,12 +89,17 @@ async function classifyEntry(uri: string): Promise<"dir" | "file" | "unknown"> {
   } catch {
     // Fall through to probe.
   }
-  // Fallback: try to read as directory — succeeds for dirs, throws for files.
+  // Fallback: try to read as directory — succeeds for dirs, throws for files
+  // *and* for some legitimate directories on certain SAF providers (e.g. when
+  // the probe itself is denied/flaky). We can't tell those two cases apart
+  // here, so we report "unknown" and let the caller decide based on filename
+  // — assuming "file" unconditionally used to fabricate real folders into
+  // fake .txt notes (bug: connected-folder subfolders showing up as .txt).
   try {
     await SAF.readDirectoryAsync(uri);
     return "dir";
   } catch {
-    return "file";
+    return "unknown";
   }
 }
 
@@ -131,6 +136,7 @@ export async function scanFolderTree(rootUri: string): Promise<SafTree> {
 
     for (const { uri: entryUri, kind } of classified) {
       const filename = decodeFilename(entryUri);
+
       if (kind === "dir") {
         const folderName = filename || "Folder";
         const childPath =
@@ -139,31 +145,54 @@ export async function scanFolderTree(rootUri: string): Promise<SafTree> {
             : `${relativePath}/${folderName}`;
         folders.push({ uri: entryUri, relativePath: childPath });
         await visit(entryUri, childPath);
-      } else {
-        const { name, ext } = splitNameExt(filename);
-        if (COVER_RE.test(filename)) {
-          covers.push({ folderPath: relativePath, uri: entryUri, ext });
+        continue;
+      }
+
+      const { name, ext } = splitNameExt(filename);
+
+      if (kind === "unknown") {
+        // Ambiguous entry: the directory probe failed but that also happens
+        // for legitimate folders on some SAF providers. An extension is a
+        // strong signal it's really a file; extension-less entries are far
+        // more likely to be folders, so recurse into them as a folder
+        // instead of fabricating a bogus .txt note. Worst case we get an
+        // empty folder entry, which is harmless — unlike corrupting a real
+        // directory into a fake writable note.
+        if (!ext) {
+          const folderName = filename || "Folder";
+          const childPath =
+            relativePath === "/"
+              ? `/${folderName}`
+              : `${relativePath}/${folderName}`;
+          folders.push({ uri: entryUri, relativePath: childPath });
+          await visit(entryUri, childPath);
           continue;
         }
-        if (TEXT_EXTS.has(ext)) {
-          files.push({
-            uri: entryUri,
-            name,
-            ext,
-            folderPath: relativePath,
-          });
-        } else if (!ext && kind === "file") {
-          // No extension — treat as text file, useful for plain notes
-          files.push({
-            uri: entryUri,
-            name: filename,
-            ext: "txt",
-            folderPath: relativePath,
-          });
-        }
-        // Other binary files (images, pdfs, etc.) are skipped silently
-        void IMAGE_EXTS; // eslint-disable-line @typescript-eslint/no-unused-expressions
       }
+
+      if (COVER_RE.test(filename)) {
+        covers.push({ folderPath: relativePath, uri: entryUri, ext });
+        continue;
+      }
+      if (TEXT_EXTS.has(ext)) {
+        files.push({
+          uri: entryUri,
+          name,
+          ext,
+          folderPath: relativePath,
+        });
+      } else if (!ext && kind === "file") {
+        // No extension but confirmed to be a real file (not a probe
+        // failure) — treat as text file, useful for plain notes.
+        files.push({
+          uri: entryUri,
+          name: filename,
+          ext: "txt",
+          folderPath: relativePath,
+        });
+      }
+      // Other binary files (images, pdfs, etc.) are skipped silently
+      void IMAGE_EXTS; // eslint-disable-line @typescript-eslint/no-unused-expressions
     }
   }
 

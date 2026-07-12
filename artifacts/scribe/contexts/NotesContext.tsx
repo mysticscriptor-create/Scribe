@@ -56,7 +56,7 @@ const SAMPLE_NOTES: NoteFile[] = [
     ext: "md",
     content: `# Welcome to Scribe
 
-A distraction-free writing space inspired by Writer Lite and Pure Writer.
+Your private, on-device writing space — distraction-free and fully offline.
 
 ## What you can do here
 

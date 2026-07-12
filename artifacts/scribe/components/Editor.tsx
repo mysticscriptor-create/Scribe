@@ -64,6 +64,7 @@ export type EditorHandle = {
   canUndo: () => boolean;
   canRedo: () => boolean;
   toggleFindReplace: () => void;
+  jumpToLine: (lineIndex: number) => void;
 };
 
 type EditorProps = {
@@ -114,6 +115,12 @@ export function Editor({
   const inputRef = useRef<TextInput>(null);
   const lastSavedRef = useRef<string>(initialContent);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the mount-reset effect below so it only ever runs once per real
+  // note switch, never on our own autosave round-trip re-render.
+  const mountedNoteIdRef = useRef<string | null>(null);
+  const lastLineIndexRef = useRef<number>(-1);
+  const scrollYAnim = useRef(new Animated.Value(0)).current;
+  const isAutoScrollingRef = useRef(false);
 
   // Undo / redo history
   const historyRef = useRef<{
@@ -133,27 +140,36 @@ export function Editor({
     });
   }, [onUndoRedoChange]);
 
-  // Reset content when note changes
+  // Initialize editor state exactly once per genuine note switch.
+  //
+  // IMPORTANT: the parent mounts <Editor key={activeNote.id} .../>, so a real
+  // note switch already fully remounts this component and re-initializes all
+  // useState/useRef initial values above. This effect's only remaining job is
+  // the one-time recovery-buffer check. It must NOT depend on `initialContent`
+  // (which changes identity after every autosave round-trip as the parent's
+  // `activeNote.content` updates) or it re-fires on every keystroke's save
+  // cycle, which used to reset the cursor to end-of-text, wipe undo history,
+  // and re-trigger the recovery banner while the user was still typing.
   useEffect(() => {
-    setContent(initialContent);
-    cursorRef.current = {
-      start: initialContent.length,
-      end: initialContent.length,
-    };
-    historyRef.current = { past: [], future: [], lastChangeAt: 0 };
-    lastSavedRef.current = initialContent;
-    lastWordCountRef.current = countWords(initialContent);
-    notifyUndoRedo();
+    if (mountedNoteIdRef.current === noteId) return;
+    mountedNoteIdRef.current = noteId;
+
+    lastLineIndexRef.current = -1;
+    scrollYAnim.setValue(0);
     setFindReplaceOpen(false);
     setRecoveryOffer(null);
 
     getRecoveryBuffer(noteId).then((buf) => {
-      if (buf && buf.content !== initialContent && buf.content.trim().length > 0) {
+      if (
+        buf &&
+        buf.content !== initialContent &&
+        buf.content.trim().length > 0
+      ) {
         setRecoveryOffer(buf.content);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteId, initialContent, notifyUndoRedo]);
+  }, [noteId]);
 
   // Continuously persist a crash-recovery buffer as the user types
   useEffect(() => {
@@ -224,24 +240,55 @@ export function Editor({
     return () => clearTimeout(t);
   }, [forcedSelection]);
 
+  // Drives a smooth, spring-eased typewriter scroll. Takes the *authoritative*
+  // text and cursor position directly (never reads the `content` state
+  // closure) so it can be called synchronously from handleChangeText with
+  // data that is guaranteed current, instead of waiting for a React render
+  // and a separate onSelectionChange event — that stale-closure race was the
+  // cause of the oscillating/jittery scroll in typewriter mode.
+  const runTypewriterScroll = useCallback(
+    (text: string, pos: number) => {
+      if (!typewriterMode || !scrollRef.current) return;
+      const lineIndex = text.slice(0, pos).split("\n").length - 1;
+      if (lineIndex === lastLineIndexRef.current) return;
+      lastLineIndexRef.current = lineIndex;
+
+      const lineHeightPx = activeTheme.fontSize * activeTheme.lineHeight;
+      const lineY = lineIndex * lineHeightPx + activeTheme.paddingVertical;
+      const targetY = Math.max(
+        0,
+        lineY - scrollViewHeightRef.current / 2 + lineHeightPx / 2,
+      );
+
+      isAutoScrollingRef.current = true;
+      scrollYAnim.stopAnimation();
+      scrollYAnim.removeAllListeners();
+      scrollYAnim.addListener(({ value }) => {
+        scrollRef.current?.scrollTo({ y: value, animated: false });
+      });
+      Animated.spring(scrollYAnim, {
+        toValue: targetY,
+        speed: 16,
+        bounciness: 0,
+        useNativeDriver: false,
+      }).start(() => {
+        isAutoScrollingRef.current = false;
+      });
+    },
+    [typewriterMode, activeTheme, scrollYAnim],
+  );
+
   const handleSelectionChange = useCallback(
     (e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
       cursorRef.current = e.nativeEvent.selection;
       onSelectionChange?.(e.nativeEvent.selection);
-
-      if (typewriterMode && scrollRef.current) {
-        const pos = e.nativeEvent.selection.start;
-        const lineIndex = content.slice(0, pos).split("\n").length - 1;
-        const lineHeightPx = activeTheme.fontSize * activeTheme.lineHeight;
-        const lineY = lineIndex * lineHeightPx + activeTheme.paddingVertical;
-        const targetY = Math.max(
-          0,
-          lineY - scrollViewHeightRef.current / 2 + lineHeightPx / 2,
-        );
-        scrollRef.current.scrollTo({ y: targetY, animated: true });
+      // Covers cursor moves that aren't text edits (taps, arrow keys) — edits
+      // are handled synchronously inside handleChangeText instead.
+      if (!isAutoScrollingRef.current) {
+        runTypewriterScroll(content, e.nativeEvent.selection.start);
       }
     },
-    [onSelectionChange, typewriterMode, content, activeTheme],
+    [onSelectionChange, content, runTypewriterScroll],
   );
 
   const setCursor = useCallback((position: number) => {
@@ -288,6 +335,7 @@ export function Editor({
         if (insertedChar === "\n" && CLOSE_CHARS.has(charAfterCursor)) {
           setContent(oldText);
           setCursor(diffPos + 1);
+          runTypewriterScroll(oldText, diffPos + 1);
           return;
         }
         // Auto-pair
@@ -301,6 +349,7 @@ export function Editor({
               newText.slice(diffPos + 1);
             setContent(updated);
             setCursor(diffPos + 1);
+            runTypewriterScroll(updated, diffPos + 1);
             return;
           }
         }
@@ -308,14 +357,38 @@ export function Editor({
         if (CLOSE_CHARS.has(insertedChar) && charAfterCursor === insertedChar) {
           setContent(oldText);
           setCursor(diffPos + 1);
+          runTypewriterScroll(oldText, diffPos + 1);
           return;
         }
       }
 
       pushHistory(oldText);
       setContent(newText);
+      // Estimate the post-edit cursor position from the common prefix/suffix
+      // between old and new text — the same authoritative newText the input
+      // just reported, not a stale `content` closure — so typewriter scroll
+      // tracks the real edit instead of chasing a value that's about to
+      // change again on the next keystroke.
+      let prefix = 0;
+      const minLen = Math.min(oldText.length, newText.length);
+      while (
+        prefix < minLen &&
+        oldText.charCodeAt(prefix) === newText.charCodeAt(prefix)
+      ) {
+        prefix++;
+      }
+      let suffix = 0;
+      while (
+        suffix < minLen - prefix &&
+        oldText.charCodeAt(oldText.length - 1 - suffix) ===
+          newText.charCodeAt(newText.length - 1 - suffix)
+      ) {
+        suffix++;
+      }
+      const estimatedCursor = newText.length - suffix;
+      runTypewriterScroll(newText, estimatedCursor);
     },
-    [content, setCursor, pushHistory],
+    [content, setCursor, pushHistory, runTypewriterScroll],
   );
 
   const applyShortcut = useCallback(
@@ -393,6 +466,41 @@ export function Editor({
     setFindReplaceOpen((v) => !v);
   }, []);
 
+  // Jump the cursor + scroll to a given line — used by the Outline tab in the
+  // right panel. Unlike runTypewriterScroll (gated on typewriterMode so it
+  // doesn't fight manual scrolling while typing), this always scrolls once,
+  // since it's an explicit user navigation action.
+  const jumpToLine = useCallback(
+    (lineIndex: number) => {
+      const lines = content.split("\n");
+      const clamped = Math.max(0, Math.min(lineIndex, lines.length - 1));
+      const pos = lines.slice(0, clamped).reduce((n, l) => n + l.length + 1, 0);
+      setCursor(pos);
+      focus();
+
+      if (!scrollRef.current) return;
+      const lineHeightPx = activeTheme.fontSize * activeTheme.lineHeight;
+      const lineY = clamped * lineHeightPx + activeTheme.paddingVertical;
+      const targetY = Math.max(0, lineY - 40);
+      lastLineIndexRef.current = clamped;
+      isAutoScrollingRef.current = true;
+      scrollYAnim.stopAnimation();
+      scrollYAnim.removeAllListeners();
+      scrollYAnim.addListener(({ value }) => {
+        scrollRef.current?.scrollTo({ y: value, animated: false });
+      });
+      Animated.spring(scrollYAnim, {
+        toValue: targetY,
+        speed: 16,
+        bounciness: 0,
+        useNativeDriver: false,
+      }).start(() => {
+        isAutoScrollingRef.current = false;
+      });
+    },
+    [content, setCursor, focus, activeTheme, scrollYAnim],
+  );
+
   // Expose handle to parent
   useEffect(() => {
     registerHandle?.({
@@ -405,6 +513,7 @@ export function Editor({
       canUndo: () => historyRef.current.past.length > 0,
       canRedo: () => historyRef.current.future.length > 0,
       toggleFindReplace,
+      jumpToLine,
     });
     return () => registerHandle?.(null);
   }, [
@@ -416,6 +525,7 @@ export function Editor({
     redo,
     flushSave,
     toggleFindReplace,
+    jumpToLine,
   ]);
 
   const handleFindJump = useCallback((match: FindMatch) => {

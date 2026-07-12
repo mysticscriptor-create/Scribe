@@ -85,7 +85,11 @@ export default function SettingsScreen() {
       style={{ flex: 1, backgroundColor: c.background }}
       contentContainerStyle={{ paddingBottom: 40 }}
     >
-      <Section label="Folder">
+      {/* ── 1. Storage & Folders ── */}
+      <Section
+        label="Storage & Folders"
+        description="Choose where your notes live — the built-in vault or a folder on your phone."
+      >
         <View
           style={[
             styles.card,
@@ -100,7 +104,7 @@ export default function SettingsScreen() {
               <Text style={[styles.cardSub, { color: c.mutedText }]}>
                 {externalRoot
                   ? "Connected phone folder · live"
-                  : "Built-in vault"}
+                  : "Built-in vault — notes stored privately on this device"}
               </Text>
             </View>
             <Feather
@@ -174,7 +178,11 @@ export default function SettingsScreen() {
         ) : null}
       </Section>
 
-      <Section label="Appearance">
+      {/* ── 2. Appearance & Theme ── */}
+      <Section
+        label="Appearance & Theme"
+        description="Pick a built-in theme or open the theme editor to create your own."
+      >
         <View
           style={[
             styles.card,
@@ -237,7 +245,11 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
-      <Section label="Editor">
+      {/* ── 3. Writing & Editor ── */}
+      <Section
+        label="Writing & Editor"
+        description="Adjust how the editor looks and behaves while you write."
+      >
         <View
           style={[
             styles.card,
@@ -250,7 +262,7 @@ export default function SettingsScreen() {
                 Floating word count
               </Text>
               <Text style={[styles.cardSub, { color: c.mutedText }]}>
-                A small word counter overlays the editor.
+                A small word counter overlays the editor while you write.
               </Text>
             </View>
             <Switch
@@ -274,7 +286,8 @@ export default function SettingsScreen() {
                 Typewriter scrolling
               </Text>
               <Text style={[styles.cardSub, { color: c.mutedText }]}>
-                Keeps your cursor line centered as you type.
+                Keeps your cursor line centered as you type, so your eyes
+                never have to chase the text.
               </Text>
             </View>
             <Switch
@@ -296,7 +309,7 @@ export default function SettingsScreen() {
             Line spacing
           </Text>
           <Text style={[styles.cardSub, { color: c.mutedText }]}>
-            Controls the space between lines in the editor.
+            Controls the breathing room between lines of text.
           </Text>
           <View style={{ height: 10 }} />
           <View style={{ flexDirection: "row", gap: 6 }}>
@@ -349,7 +362,7 @@ export default function SettingsScreen() {
             Font size — {editorFontSize}px
           </Text>
           <Text style={[styles.cardSub, { color: c.mutedText }]}>
-            Editor text size (14–22 px).
+            Editor text size (14–22 px). Tap Reset to return to the default.
           </Text>
           <View style={{ height: 10 }} />
           <View
@@ -437,6 +450,10 @@ export default function SettingsScreen() {
             { backgroundColor: c.surface, borderColor: c.border },
           ]}
         >
+          <Text style={[styles.cardSub, { color: c.mutedText }]}>
+            Add, remove, or reorder the buttons that appear above the keyboard.
+          </Text>
+          <View style={{ height: 8 }} />
           <ActionBtn
             icon="command"
             label="Customize shortcut bar"
@@ -445,7 +462,11 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
-      <Section label="File panel">
+      {/* ── 4. Files & Navigation ── */}
+      <Section
+        label="Files & Navigation"
+        description="Control how notes and folders are displayed in the file panel."
+      >
         <View
           style={[
             styles.card,
@@ -457,7 +478,7 @@ export default function SettingsScreen() {
           </Text>
           <Text style={[styles.cardSub, { color: c.mutedText }]}>
             Tree shows folder hierarchy. List shows every note flat. Folders
-            shows a grid with cover.jpg images.
+            shows a visual grid with cover.jpg images.
           </Text>
           <View style={{ height: 10 }} />
           <View style={{ flexDirection: "row", gap: 6 }}>
@@ -494,7 +515,11 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
-      <Section label="Writing goals">
+      {/* ── 5. Goals & Streaks ── */}
+      <Section
+        label="Goals & Streaks"
+        description="Set a daily word target and track your writing consistency."
+      >
         <View
           style={[
             styles.card,
@@ -506,7 +531,7 @@ export default function SettingsScreen() {
           </Text>
           <Text style={[styles.cardSub, { color: c.mutedText }]}>
             {todayWords.toLocaleString()} / {dailyGoal.toLocaleString()} words
-            today
+            written today
           </Text>
           <View style={{ height: 10 }} />
           <View style={{ flexDirection: "row", gap: 8 }}>
@@ -549,10 +574,37 @@ export default function SettingsScreen() {
                 {currentStreak} day{currentStreak === 1 ? "" : "s"} streak
               </Text>
               <Text style={[styles.cardSub, { color: c.mutedText }]}>
-                Best: {longestStreak} day{longestStreak === 1 ? "" : "s"}
+                Best: {longestStreak} day{longestStreak === 1 ? "" : "s"} —
+                keep writing daily to grow your streak!
               </Text>
             </View>
           </View>
+        </View>
+      </Section>
+
+      {/* ── 6. Help & About ── */}
+      <Section
+        label="Help & About"
+        description="Learn how to use Scribe or find out more about the app."
+      >
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: c.surface, borderColor: c.border },
+          ]}
+        >
+          <ActionBtn
+            icon="book-open"
+            label="How to use Scribe — in-app guide"
+            primary
+            onPress={() => router.push("/guide")}
+          />
+          <View style={{ height: 8 }} />
+          <ActionBtn
+            icon="info"
+            label="About Scribe"
+            onPress={() => router.push("/about")}
+          />
         </View>
       </Section>
     </ScrollView>
@@ -561,27 +613,43 @@ export default function SettingsScreen() {
 
 function Section({
   label,
+  description,
   children,
 }: {
   label: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   const { activeTheme } = useTheme();
+  const c = activeTheme.colors;
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
+    <View style={{ paddingHorizontal: 16, paddingTop: 20 }}>
       <Text
         style={{
-          color: activeTheme.colors.mutedText,
+          color: c.mutedText,
           fontSize: 11,
           fontWeight: "700",
           letterSpacing: 1.2,
           textTransform: "uppercase",
-          marginBottom: 8,
+          marginBottom: description ? 4 : 8,
           paddingHorizontal: 4,
         }}
       >
         {label}
       </Text>
+      {description ? (
+        <Text
+          style={{
+            color: c.mutedText,
+            fontSize: 12,
+            lineHeight: 17,
+            paddingHorizontal: 4,
+            marginBottom: 10,
+          }}
+        >
+          {description}
+        </Text>
+      ) : null}
       {children}
     </View>
   );

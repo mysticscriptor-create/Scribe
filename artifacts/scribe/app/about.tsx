@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -40,6 +41,8 @@ const FEATURES: { icon: React.ComponentProps<typeof Feather>["name"]; title: str
 export default function AboutScreen() {
   const { activeTheme } = useTheme();
   const c = activeTheme.colors;
+  const router = useRouter();
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.background }}
@@ -72,6 +75,29 @@ export default function AboutScreen() {
           and never leave the app.
         </Text>
       </View>
+
+      {/* Guide link */}
+      <Pressable
+        onPress={() => router.push("/guide")}
+        style={({ pressed }) => [
+          styles.guideBtn,
+          {
+            backgroundColor: pressed ? c.accent + "dd" : c.accent,
+            borderColor: c.accent,
+          },
+        ]}
+      >
+        <Feather name="book-open" size={18} color={c.toolbar} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.guideBtnTitle, { color: c.toolbar }]}>
+            How to use Scribe
+          </Text>
+          <Text style={[styles.guideBtnSub, { color: c.toolbar + "cc" }]}>
+            Writing, shortcuts, folders, projects, themes & more
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={16} color={c.toolbar + "aa"} />
+      </Pressable>
 
       <Text style={[styles.section, { color: c.mutedText }]}>What's inside</Text>
       {FEATURES.map((f) => (
@@ -146,6 +172,23 @@ const styles = StyleSheet.create({
   cardText: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  guideBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  guideBtnTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  guideBtnSub: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
   },
   section: {
     fontSize: 11,

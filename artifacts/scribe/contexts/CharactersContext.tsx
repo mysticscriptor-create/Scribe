@@ -20,6 +20,8 @@ export type Sheet = {
   name: string;
   summary: string;
   fields: SheetField[];
+  tags?: string[];
+  imageUri?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -48,6 +50,7 @@ type CharactersContextValue = {
   createSheet: (type: SheetType, name: string) => Sheet;
   updateSheet: (id: string, partial: Partial<Sheet>) => void;
   deleteSheet: (id: string) => void;
+  duplicateSheet: (id: string) => Sheet | undefined;
   getSheet: (id: string) => Sheet | undefined;
 };
 
@@ -88,6 +91,7 @@ export function CharactersProvider({
       fields: (type === "character" ? CHARACTER_TEMPLATE : LOCATION_TEMPLATE).map(
         (f) => ({ ...f }),
       ),
+      tags: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -107,14 +111,34 @@ export function CharactersProvider({
     setSheets((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
+  const duplicateSheet = useCallback(
+    (id: string): Sheet | undefined => {
+      setSheets((prev) => {
+        const source = prev.find((s) => s.id === id);
+        if (!source) return prev;
+        const copy: Sheet = {
+          ...source,
+          id: generateId(),
+          name: `${source.name} (copy)`,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        return [copy, ...prev];
+      });
+      // return undefined; the caller can open the list fresh
+      return undefined;
+    },
+    [],
+  );
+
   const getSheet = useCallback(
     (id: string) => sheets.find((s) => s.id === id),
     [sheets],
   );
 
   const value = useMemo(
-    () => ({ sheets, createSheet, updateSheet, deleteSheet, getSheet }),
-    [sheets, createSheet, updateSheet, deleteSheet, getSheet],
+    () => ({ sheets, createSheet, updateSheet, deleteSheet, duplicateSheet, getSheet }),
+    [sheets, createSheet, updateSheet, deleteSheet, duplicateSheet, getSheet],
   );
 
   return (

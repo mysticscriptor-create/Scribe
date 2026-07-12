@@ -3,6 +3,7 @@ import { useFocusEffect } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
   LayoutChangeEvent,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -30,8 +31,15 @@ import { useTheme } from "@/contexts/ThemeContext";
 
 export default function HomeScreen() {
   const { activeTheme } = useTheme();
-  const { activeNote, renameNote, createNote, hydrated } = useNotes();
-  const { toggleLeftMenu, toggleRightPanel, setSearchOpen } = usePanels();
+  const { activeNote, renameNote, createNote, hydrated, setActiveNote } =
+    useNotes();
+  const {
+    toggleLeftMenu,
+    toggleRightPanel,
+    setSearchOpen,
+    typewriterMode,
+    setTypewriterMode,
+  } = usePanels();
   const insets = useSafeAreaInsets();
   const c = activeTheme.colors;
 
@@ -43,6 +51,7 @@ export default function HomeScreen() {
   const [zenMode, setZenMode] = useState(false);
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [exportOpen, setExportOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const toggleZen = useCallback(() => setZenMode((z) => !z), []);
   const doubleTapGesture = Gesture.Tap()
@@ -139,30 +148,106 @@ export default function HomeScreen() {
             accessibilityLabel="Search"
           />
           <IconButton
-            icon="edit-2"
-            onPress={() => editorRef.current?.toggleFindReplace()}
-            accessibilityLabel="Find and replace in note"
+            icon="more-vertical"
+            onPress={() => setMoreMenuOpen(true)}
+            accessibilityLabel="More options"
           />
           <IconButton
-            icon="share"
-            onPress={() => setExportOpen(true)}
-            accessibilityLabel="Export"
-            disabled={!activeNote}
-          />
-          <IconButton
-            icon="eye"
-            onPress={() => setZenMode(true)}
-            accessibilityLabel="Zen mode"
-          />
-          <IconButton
-            icon="folder"
+            icon="sidebar"
             onPress={toggleRightPanel}
-            accessibilityLabel="Files"
+            accessibilityLabel="Pinned & outline"
           />
         </View>
       ) : (
         <View style={{ height: insets.top }} />
       )}
+
+      {/* Consolidated three-dot overflow menu: typewriter, find & replace, export */}
+      <Modal
+        visible={moreMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMoreMenuOpen(false)}
+      >
+        <Pressable
+          style={styles.moreBackdrop}
+          onPress={() => setMoreMenuOpen(false)}
+        >
+          <View
+            style={[
+              styles.moreSheet,
+              {
+                top: insets.top + 44,
+                backgroundColor: c.surface,
+                borderColor: c.border,
+              },
+            ]}
+          >
+            <Pressable
+              style={styles.moreRow}
+              onPress={() => {
+                setTypewriterMode(!typewriterMode);
+                setMoreMenuOpen(false);
+              }}
+            >
+              <Feather
+                name="align-center"
+                size={16}
+                color={typewriterMode ? c.accent : c.text}
+              />
+              <Text
+                style={{
+                  color: typewriterMode ? c.accent : c.text,
+                  fontSize: 14,
+                  flex: 1,
+                }}
+              >
+                Typewriter mode
+              </Text>
+              {typewriterMode ? (
+                <Feather name="check" size={14} color={c.accent} />
+              ) : null}
+            </Pressable>
+            <Pressable
+              style={styles.moreRow}
+              onPress={() => {
+                editorRef.current?.toggleFindReplace();
+                setMoreMenuOpen(false);
+              }}
+            >
+              <Feather name="edit-2" size={16} color={c.text} />
+              <Text style={{ color: c.text, fontSize: 14, flex: 1 }}>
+                Find & replace
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.moreRow, { opacity: activeNote ? 1 : 0.4 }]}
+              disabled={!activeNote}
+              onPress={() => {
+                setExportOpen(true);
+                setMoreMenuOpen(false);
+              }}
+            >
+              <Feather name="share" size={16} color={c.text} />
+              <Text style={{ color: c.text, fontSize: 14, flex: 1 }}>
+                Export
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.moreRow}
+              onPress={() => {
+                setZenMode(true);
+                setMoreMenuOpen(false);
+              }}
+            >
+              <Feather name="eye" size={16} color={c.text} />
+              <Text style={{ color: c.text, fontSize: 14, flex: 1 }}>
+                Zen mode
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       {zenMode ? (
         <Pressable
@@ -226,8 +311,8 @@ export default function HomeScreen() {
       />
 
       {/* Drawers */}
-      <Menu />
-      <SidePanel />
+      <Menu onOpenNote={(id) => setActiveNote(id)} />
+      <SidePanel onJumpToLine={(line) => editorRef.current?.jumpToLine(line)} />
 
       {/* Search overlay */}
       <SearchOverlay />
@@ -298,5 +383,28 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     zIndex: 20,
     elevation: 8,
+  },
+  moreBackdrop: {
+    flex: 1,
+  },
+  moreSheet: {
+    position: "absolute",
+    right: 8,
+    width: 220,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 4,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+  },
+  moreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
 });

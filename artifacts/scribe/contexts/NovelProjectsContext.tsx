@@ -31,6 +31,8 @@ export const SCENE_STATUS_COLORS: Record<SceneStatus, string> = {
   final: "#22c55e",
 };
 
+export type StructureMode = "scene-wise" | "chapter-wise";
+
 export type SceneInfo = {
   noteId: string;
   name: string;
@@ -43,6 +45,8 @@ export type Chapter = {
   projectId: string;
   name: string;
   orderIndex: number;
+  /** In chapter-wise projects, the chapter itself is the note. noteId holds it. */
+  noteId?: string;
   scenes: SceneInfo[];
 };
 
@@ -52,6 +56,8 @@ export type Project = {
   coverColor: string;
   dateCreated: number;
   lastModified: number;
+  /** Defaults to "scene-wise" for backward compat with existing saved projects. */
+  structureMode?: StructureMode;
 };
 
 const COVER_COLORS = [
@@ -75,10 +81,10 @@ type NovelProjectsContextValue = {
   projects: Project[];
   chapters: Chapter[];
   hydrated: boolean;
-  createProject: (name: string) => Project;
+  createProject: (name: string, structureMode?: StructureMode) => Project;
   updateProject: (id: string, patch: Partial<Omit<Project, "id">>) => void;
   deleteProject: (id: string) => { sceneNoteIds: string[] };
-  createChapter: (projectId: string, name: string) => Chapter;
+  createChapter: (projectId: string, name: string, noteId?: string) => Chapter;
   updateChapter: (
     id: string,
     patch: Partial<Omit<Chapter, "id" | "projectId">>,
@@ -96,6 +102,8 @@ type NovelProjectsContextValue = {
   ) => void;
   removeScene: (chapterId: string, noteId: string) => void;
   chaptersForProject: (projectId: string) => Chapter[];
+  /** Convenience: resolves effective structureMode (missing field → "scene-wise") */
+  getStructureMode: (projectId: string) => StructureMode;
 };
 
 const NovelProjectsContext = createContext<NovelProjectsContextValue | null>(
@@ -138,13 +146,14 @@ export function NovelProjectsProvider({
   }, [chapters, hydrated]);
 
   const createProject = useCallback(
-    (name: string): Project => {
+    (name: string, structureMode: StructureMode = "scene-wise"): Project => {
       const project: Project = {
         id: genId(),
         name: name.trim() || "Untitled Project",
         coverColor: pickColor(projects),
         dateCreated: Date.now(),
         lastModified: Date.now(),
+        structureMode,
       };
       setProjects((prev) => [...prev, project]);
       return project;
@@ -168,7 +177,11 @@ export function NovelProjectsProvider({
       let noteIds: string[] = [];
       setChapters((prev) => {
         const toRemove = prev.filter((c) => c.projectId === id);
-        noteIds = toRemove.flatMap((c) => c.scenes.map((s) => s.noteId));
+        // collect both scene noteIds and chapter-wise noteIds
+        noteIds = toRemove.flatMap((c) => {
+          const sceneIds = c.scenes.map((s) => s.noteId);
+          return c.noteId ? [c.noteId, ...sceneIds] : sceneIds;
+        });
         return prev.filter((c) => c.projectId !== id);
       });
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -178,7 +191,7 @@ export function NovelProjectsProvider({
   );
 
   const createChapter = useCallback(
-    (projectId: string, name: string): Chapter => {
+    (projectId: string, name: string, noteId?: string): Chapter => {
       const existingCount = chapters.filter(
         (c) => c.projectId === projectId,
       ).length;
@@ -187,6 +200,7 @@ export function NovelProjectsProvider({
         projectId,
         name: name.trim() || "Untitled Chapter",
         orderIndex: existingCount,
+        noteId,
         scenes: [],
       };
       setChapters((prev) => [...prev, chapter]);
@@ -214,7 +228,10 @@ export function NovelProjectsProvider({
       let noteIds: string[] = [];
       setChapters((prev) => {
         const ch = prev.find((c) => c.id === id);
-        if (ch) noteIds = ch.scenes.map((s) => s.noteId);
+        if (ch) {
+          const sceneIds = ch.scenes.map((s) => s.noteId);
+          noteIds = ch.noteId ? [ch.noteId, ...sceneIds] : sceneIds;
+        }
         return prev.filter((c) => c.id !== id);
       });
       return { sceneNoteIds: noteIds };
@@ -281,6 +298,14 @@ export function NovelProjectsProvider({
     [chapters],
   );
 
+  const getStructureMode = useCallback(
+    (projectId: string): StructureMode => {
+      const p = projects.find((proj) => proj.id === projectId);
+      return p?.structureMode ?? "scene-wise";
+    },
+    [projects],
+  );
+
   const value = useMemo(
     () => ({
       projects,
@@ -296,6 +321,7 @@ export function NovelProjectsProvider({
       updateScene,
       removeScene,
       chaptersForProject,
+      getStructureMode,
     }),
     [
       projects,
@@ -311,6 +337,7 @@ export function NovelProjectsProvider({
       updateScene,
       removeScene,
       chaptersForProject,
+      getStructureMode,
     ],
   );
 
