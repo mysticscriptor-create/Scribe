@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -43,6 +44,30 @@ export function Menu({ onOpenNote }: { onOpenNote: (id: string) => void }) {
   const menuWidth = Math.min(360, Math.max(280, screenWidth * 0.84));
   const translateX = useRef(new Animated.Value(-menuWidth)).current;
   const [view, setView] = useState<MenuView>("main");
+  const leftMenuOpenRef = useRef(leftMenuOpen);
+  leftMenuOpenRef.current = leftMenuOpen;
+
+  // Swipe-to-close: drag the drawer itself back off-screen to the left. This
+  // lives on the drawer's own content (as an ancestor of its ScrollView and
+  // buttons), which is a safe PanResponder placement -- unlike a sibling
+  // overlay, an ancestor only claims the touch once it recognizes a
+  // horizontal drag past the threshold, so plain taps and the internal
+  // vertical ScrollView are unaffected.
+  const closeResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gesture) => {
+        if (!leftMenuOpenRef.current) return false;
+        return (
+          gesture.dx < -10 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5
+        );
+      },
+      onPanResponderRelease: (_evt, gesture) => {
+        if (gesture.dx < -60 || gesture.vx < -0.5) {
+          setLeftMenuOpen(false);
+        }
+      },
+    }),
+  ).current;
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -71,6 +96,7 @@ export function Menu({ onOpenNote }: { onOpenNote: (id: string) => void }) {
       ) : null}
       <Animated.View
         pointerEvents={leftMenuOpen ? "auto" : "none"}
+        {...closeResponder.panHandlers}
         style={[
           styles.menu,
           {

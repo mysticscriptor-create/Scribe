@@ -2,3 +2,6 @@
 - [Scribe build notes](scribe-build.md) — native deps require full EAS build; OTA-only for JS changes; Hermes + Reanimated already configured in app.json and babel.config.js.
 - [Scribe context pattern](scribe-context-pattern.md) — all contexts hydrate from AsyncStorage with a `hydrated: boolean` flag; gate side effects on it (e.g. useFocusEffect in index.tsx).
 - [Scribe panel architecture](scribe-panel-architecture.md) — left drawer = Macro (browse/manage: files, projects, settings, search); right drawer = Micro (reference-while-writing: pinned, outline). Don't mix the two.
+- [EdgeSwipeArea / drawer gesture architecture](edge-swipe-gesture-architecture.md) — sibling PanResponder overlays eat touches under them; use RNGH for edge-swipe, plain PanResponder is fine as a drawer's own ancestor.
+    - [KeyboardAwareScrollView vs manual scroll conflicts](keyboard-aware-scrollview-conflicts.md) — its own caret auto-scroll fights custom scroll systems (e.g. typewriter mode) unless disabled via `enabled`; bottomOffset must reflect real chrome height.
+    

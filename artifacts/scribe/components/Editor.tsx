@@ -71,6 +71,12 @@ type EditorProps = {
   noteId: string;
   initialContent: string;
   autoFocus?: boolean;
+  // Distance to keep between the caret and the keyboard, in px. Should
+  // reflect whatever real chrome (e.g. the shortcut bar) sits between this
+  // scroll view and the keyboard — the caller measures that and passes it
+  // in, rather than us guessing a fixed number that drifts out of sync with
+  // the actual layout and produces mis-scrolled/"cursor out of view" jumps.
+  bottomOffset?: number;
   onChangeContent?: (content: string) => void;
   onSelectionChange?: (sel: Selection) => void;
   onUndoRedoChange?: (state: { canUndo: boolean; canRedo: boolean }) => void;
@@ -81,6 +87,7 @@ export function Editor({
   noteId,
   initialContent,
   autoFocus = false,
+  bottomOffset = 120,
   onChangeContent,
   onSelectionChange,
   onUndoRedoChange,
@@ -678,7 +685,19 @@ export function Editor({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
-        bottomOffset={120}
+        bottomOffset={bottomOffset}
+        // While typewriter mode is active, our own runTypewriterScroll
+        // above already drives an authoritative centered-scroll on every
+        // line change. Leaving this library's own selection-driven
+        // auto-scroll enabled at the same time meant two independent
+        // systems raced to scroll to two different target offsets on every
+        // keystroke that advanced a line (Enter, and auto-paired
+        // quotes/brackets both count) -- that fight was the jitter/jump
+        // reported when typing quotes or pressing Enter. Disabling this
+        // one while typewriter mode owns the scroll leaves a single
+        // authority in charge; the static `paddingBottom: 300` above
+        // already reserves enough room for the keyboard in that mode.
+        enabled={!typewriterMode}
       >
         <View
           style={{

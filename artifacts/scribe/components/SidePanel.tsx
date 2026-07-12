@@ -4,6 +4,7 @@ import {
   Animated,
   Dimensions,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -38,6 +39,27 @@ export function SidePanel({
   const panelWidth = Math.min(360, Math.max(280, screenWidth * 0.82));
   const translateX = useRef(new Animated.Value(panelWidth)).current;
   const [tab, setTab] = useState<SidePanelTab>("pinned");
+  const rightPanelOpenRef = useRef(rightPanelOpen);
+  rightPanelOpenRef.current = rightPanelOpen;
+
+  // Swipe-to-close: drag the drawer itself back off-screen to the right (see
+  // Menu.tsx for why an ancestor PanResponder here is safe for its own
+  // ScrollView/buttons, unlike a sibling overlay).
+  const closeResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gesture) => {
+        if (!rightPanelOpenRef.current) return false;
+        return (
+          gesture.dx > 10 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5
+        );
+      },
+      onPanResponderRelease: (_evt, gesture) => {
+        if (gesture.dx > 60 || gesture.vx > 0.5) {
+          setRightPanelOpen(false);
+        }
+      },
+    }),
+  ).current;
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -57,6 +79,7 @@ export function SidePanel({
       ) : null}
       <Animated.View
         pointerEvents={rightPanelOpen ? "auto" : "none"}
+        {...closeResponder.panHandlers}
         style={[
           styles.panel,
           {

@@ -52,6 +52,7 @@ export default function HomeScreen() {
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [exportOpen, setExportOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [shortcutBarHeight, setShortcutBarHeight] = useState(56);
 
   const toggleZen = useCallback(() => setZenMode((z) => !z), []);
   const doubleTapGesture = Gesture.Tap()
@@ -269,6 +270,7 @@ export default function HomeScreen() {
               key={activeNote.id}
               noteId={activeNote.id}
               initialContent={activeNote.content}
+              bottomOffset={zenMode ? insets.bottom + 16 : shortcutBarHeight + 16}
               registerHandle={(h) => {
                 editorRef.current = h;
               }}
@@ -285,24 +287,29 @@ export default function HomeScreen() {
               </Text>
             </View>
           )}
+
+          {/* Edge swipe handles, scoped to the editor's own box so they can
+              never overlap the top bar or shortcut bar, and inset from the
+              corners so they don't cover the preview toggle / word count
+              widgets. */}
+          <EdgeSwipeArea edge="right" topInset={50} bottomInset={60} />
+          <EdgeSwipeArea edge="left" topInset={50} bottomInset={60} />
         </View>
       </GestureDetector>
 
       {/* Shortcut bar above keyboard */}
       <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-        <ShortcutBar
-          visible={!zenMode}
-          onApply={(s) => editorRef.current?.applyShortcut(s)}
-          onUndo={() => editorRef.current?.undo()}
-          onRedo={() => editorRef.current?.redo()}
-          canUndo={undoState.canUndo}
-          canRedo={undoState.canRedo}
-        />
+        <View onLayout={(e) => setShortcutBarHeight(e.nativeEvent.layout.height)}>
+          <ShortcutBar
+            visible={!zenMode}
+            onApply={(s) => editorRef.current?.applyShortcut(s)}
+            onUndo={() => editorRef.current?.undo()}
+            onRedo={() => editorRef.current?.redo()}
+            canUndo={undoState.canUndo}
+            canRedo={undoState.canRedo}
+          />
+        </View>
       </KeyboardStickyView>
-
-      {/* Edge swipe handles (over content, transparent) */}
-      <EdgeSwipeArea edge="right" />
-      <EdgeSwipeArea edge="left" />
 
       {/* Floating windows layer */}
       <FloatingWindowsLayer
